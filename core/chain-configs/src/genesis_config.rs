@@ -3,6 +3,11 @@
 //! NOTE: chain-configs is not the best place for `GenesisConfig` since it
 //! contains `RuntimeConfig`, but we keep it here for now until we figure
 //! out the better place.
+//! chain-configs는 GenesisConfig를 위한 최고의 장소가 아니다. 왜냐하면 chain-config는 RuntimeConfig를 포함하고 있기 때문
+//! 하지만 더 좋은 장소를 찾을 때 까지 여기에 냅둘거다.
+//! GenesisConfig는 초기 블록의 설정값 갖고 있음
+//! RuntimeConfig는 블록체인의 실행 환경 설정
+//! 이런 핵심 설정들을 한곳에서 관리하니까 최적의 장소가 아니라고 한 것 같음.
 use crate::genesis_validate::validate_genesis;
 use anyhow::Context;
 use chrono::{DateTime, Utc};
@@ -186,8 +191,13 @@ impl GenesisConfig {
     }
 }
 
+/// From trait 구현하고 있음. 두 개의 서로 다른 타입 간에 변환이 가능하도록 해주는 trait 임.
 impl From<&GenesisConfig> for EpochConfig {
+    /// GenesisConfig 에서 EpochConfig로 변환 구현하고 있음.
     fn from(config: &GenesisConfig) -> Self {
+        /// GenesisConfig의 참조를 EpochConfig로 변환하는 메서드
+        /// EpochConfig 구조체의 필드를 GenesisConfig로 채우고 반환함.
+        /// => GenesisConfig 의 필드 정보를 통해 EpochConfig 를 초기화할 수 O
         EpochConfig {
             epoch_length: config.epoch_length,
             num_block_producer_seats: config.num_block_producer_seats,
@@ -543,6 +553,7 @@ impl Genesis {
             GenesisValidationMode::Full => validate_genesis(self),
             GenesisValidationMode::UnsafeFast => {
                 warn!(target: "genesis", "Skipped genesis validation");
+                //
                 Ok(())
             }
         }

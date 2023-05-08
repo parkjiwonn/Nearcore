@@ -19,7 +19,9 @@ pub type RngSeed = [u8; 32];
 pub const AGGREGATOR_KEY: &[u8] = b"AGGREGATOR";
 
 /// Epoch config, determines validator assignment for given epoch.
+/// 주어진 에포크에서 검증자의 할당을 결정하는 Epoch config
 /// Can change from epoch to epoch depending on the sharding and other parameters, etc.
+/// 샤딩과 다른 파라미터에 기반해 에포크에서부터 에포크로 변화할 수 있다.
 #[derive(Clone, Eq, Debug, PartialEq)]
 pub struct EpochConfig {
     /// Epoch length in block heights.

@@ -77,12 +77,23 @@ pub fn load_migration_data(chain_id: &str) -> MigrationData {
 }
 
 pub(super) struct Migrator<'a> {
+    /// pub(super) 구조체가 정의된 모듈에서는 사용할 수 있지만 상위 모듈에서는 사용할 수 없다.
+    /// lib.rs에서 Migrator 구조체를 정의하고 있어서 해당 메서드에 접근 가능함.
     config: &'a crate::config::NearConfig,
+    /// &'a 라이프 타임 매개변수
+    /// 매개변수 config는 NearConfig의 레퍼런스이다.
+    /// 구조체의 생성자가 소유하고 있는 config 매개변수의 수명이 'a 와 같다는 것 의미
+    /// 레퍼런스의 수명은 레퍼런스가 유효한 범위를 나타냄.
+    /// NearConfig의 레퍼런스 수명이 config가 유효한 범위랑 같다.
+    /// 공홈 : 빌려준 사람이 소멸되기 전에 종료되는 한 유한하다.
+    /// = Migrator
 }
 
 impl<'a> Migrator<'a> {
+    /// config 매개변수 갖고 있음.
+    /// Self 타입을 반환한다. self는 Migrator 구조체를 가리키는 키워드임.
     pub fn new(config: &'a crate::config::NearConfig) -> Self {
-        Self { config }
+        Self { config } /// Migrator 구조체 생성
     }
 }
 

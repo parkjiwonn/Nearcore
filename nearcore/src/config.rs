@@ -294,11 +294,16 @@ pub struct Config {
     #[serde(skip_serializing_if = "is_false")]
     pub archive: bool,
     /// If save_trie_changes is not set it will get inferred from the `archive` field as follows:
+    /// save_trie_changes가 설정되어 있지 않으면 다음과 같이 archive 필드에서부터 추론된다.
     /// save_trie_changes = !archive
     /// save_trie_changes should be set to true iff
+    /// save_trie_changes는 참으로 설정해야 한다. what is iff?
     /// - archive if false - non-archival nodes need trie changes to perform garbage collection
-    /// - archive is true and cold_store is configured - node working in split storage mode
-    /// needs trie changes in order to do garbage collection on hot and populate cold State column.
+    /// - 아카이브가 만약 거짓이라면 가비지 콜렉터를 수행하기 위해 비보관 노드에서 trie changes를 필요로 한다.
+    /// - archive is true and cold_store is configured
+    /// - node working in split storage mode needs trie changes in order to do garbage collection on hot and populate cold State column.
+    /// - 아카이브가 참이고 cold_store가 구성되었다.
+    /// - 분학 저장소 모드에서 작동하는 노드가 hot 상태 열에서 가비지 컬렉션 수행하고 cold 상태 열을 채우기 위해  trie change가 필요하다.   
     #[serde(skip_serializing_if = "Option::is_none")]
     pub save_trie_changes: Option<bool>,
     pub log_summary_style: LogSummaryStyle,
@@ -604,7 +609,9 @@ impl Genesis {
 }
 
 #[derive(Clone)]
+/// -> 구조체를 복제하여 사용할 수 있게 되는 것.
 pub struct NearConfig {
+    /// near 설정파일
     pub config: Config,
     pub client_config: ClientConfig,
     pub network_config: NetworkConfig,

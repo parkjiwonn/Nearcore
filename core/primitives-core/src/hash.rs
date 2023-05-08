@@ -23,17 +23,20 @@ use std::io::Write;
 pub struct CryptoHash(pub [u8; 32]);
 
 impl CryptoHash {
+    /// 단방향인 해시함수
     pub const fn new() -> Self {
         Self([0; 32])
     }
 
     /// Calculates hash of given bytes.
+    /// 지정된 바이트의 해시를 계산한다.
     pub fn hash_bytes(bytes: &[u8]) -> CryptoHash {
         CryptoHash(sha2::Sha256::digest(bytes).into())
     }
 
     /// Calculates hash of borsh-serialised representation of an object.
-    ///
+    /// 개체의 borsh-직렬 표현의 해시를 계산한다.
+    /// borsh : 이진 직렬 변환기 (Binary Object Representation Serializer for Hashing)
     /// Note that using this function with an array may lead to unexpected
     /// results.  For example, `CryptoHash::hash_borsh(&[1u32, 2, 3])` hashes
     /// a representation of a `[u32; 3]` array rather than a slice.  It may be

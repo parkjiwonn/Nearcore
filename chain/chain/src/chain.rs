@@ -84,6 +84,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration as TimeDuration, Instant};
 use tracing::{debug, error, info, warn, Span};
+use std::thread;
 
 /// Maximum number of orphans chain can store.
 pub const MAX_ORPHAN_SIZE: usize = 1024;
@@ -421,7 +422,14 @@ pub fn check_known(
 type BlockApplyChunksResult = (CryptoHash, Vec<Result<ApplyChunkResult, Error>>);
 
 /// Facade to the blockchain block processing and storage.
+/// 블록체인 블록 처리와 저장에 대한 Facade
+/// Facade ?
+/// 건물의 정면 = 소프트웨어에선 디자인 패턴 중 하나
+/// 복잡한 인터페이스를 단순한 인터페이스로 대체하여 사용자에게 제공하는 패턴
+/// 정리 : 복잡한 시스템을 사람들이 이해하기 쉽게 단순화 한 것.
+/// chain에는 모든 거래관련 정보들이 들어있다. 저장소의 집합이라고 생각함.
 /// Provides current view on the state according to the chain state.
+/// 체인 상태에 따른 상태의 현재 보기를 제공함.
 pub struct Chain {
     store: ChainStore,
     pub runtime_adapter: Arc<dyn RuntimeWithEpochManagerAdapter>,
@@ -434,10 +442,13 @@ pub struct Chain {
     pub block_economics_config: BlockEconomicsConfig,
     pub doomslug_threshold_mode: DoomslugThresholdMode,
     pub blocks_delay_tracker: BlocksDelayTracker,
-    /// Processing a block is done in three stages: preprocess_block, async_apply_chunks and
-    /// postprocess_block. The async_apply_chunks is done asynchronously from the ClientActor thread.
+    /// Processing a block is done in three stages: preprocess_block, async_apply_chunks and postprocess_block.
+    /// 블록을 처리하는 것은 3가지의 단계에서 수행된다.
+    /// The async_apply_chunks is done asynchronously from the ClientActor thread.
+    /// 비동기_지원_청크는 ClientActor 스레드에서 부터 비동기적으로 수행된다.
     /// `blocks_in_processing` keeps track of all the blocks that have been preprocessed but are
     /// waiting for chunks being applied.
+    /// blocks_in_processing은 (전처리되었지만 청크가 적용되기를 기다리는) -> 모든 블록들을 추적한다.
     pub(crate) blocks_in_processing: BlocksInProcessing,
     /// Used by async_apply_chunks to send apply chunks results back to chain
     apply_chunks_sender: Sender<BlockApplyChunksResult>,
@@ -468,6 +479,10 @@ pub struct Chain {
 }
 
 impl Drop for Chain {
+    /// drop trait 구현하고 있음.
+    /// rust에서 메모리 해제하기 전에 호출되는 함수.
+    /// chain 구조체가 해제될 때 blocks_in_processing 변수가 참조하는 객체가 모두 처리될 때까지 대기하도록
+    /// wait_for_all_blocks() 함수 호출함.
     fn drop(&mut self) {
         let _ = self.blocks_in_processing.wait_for_all_blocks();
     }
@@ -565,6 +580,8 @@ impl Chain {
         );
 
         // Check if we have a head in the store, otherwise pick genesis block.
+        /// 저장소에 헤드가 있는지 확인하고 그렇지 않으면 제네시스 블록을 선택한다.
+        /// 헤드에는 이전 블록의 해시값이 들어있는데 그런 헤드가 없다는 거는 블록체인이 생성되지 않다는 것.
         let mut store_update = store.store_update();
         let (block_head, header_head) = match store_update.head() {
             Ok(block_head) => {
@@ -579,9 +596,12 @@ impl Chain {
                 }
 
                 // Check we have the header corresponding to the header_head.
+                /// header_head에 해당하는 헤더가 있는지 확인한다.
+                /// header_head 선언
                 let mut header_head = store_update.header_head()?;
                 if store_update.get_block_header(&header_head.last_block_hash).is_err() {
                     // Reset header head and "sync" head to be consistent with current block head.
+                    /// 헤더 헤드와 동기화 헤드를 현재 블록 헤드와 일치하도록 재설정합니다.
                     store_update.save_header_head_if_not_challenged(&block_head)?;
                     header_head = block_head.clone();
                 }
@@ -645,9 +665,20 @@ impl Chain {
         };
         store_update.commit()?;
 
-        info!(target: "chain", "Init: header head @ #{} {}; block head @ #{} {}",
+        let handle = thread::current();
+        let thread_id = handle.id();
+        /// header head & block head 로그로 찍기
+        /// 블록체인 노드의 초기화(init)과정에서 출력되는 메세지 중 하나
+        info!(target: "chain", "Init: header head @ #{} {}; block head @ #{} {}; thread_id={:?}",
               header_head.height, header_head.last_block_hash,
-              block_head.height, block_head.last_block_hash);
+              block_head.height, block_head.last_block_hash, thread_id);
+        /// header head : 블록체인의 헤더 데이터 의미함.
+        /// block head : 블록체인의 최신 블록 의미
+        /// header head는 왜 초기화하는 걸까?
+        /// 블록체인 최신 헤더 데이터가 어디까지 업데이트 되었는지 확인하기 위해
+        /// block head는 왜 초기화하는 걸까?
+        /// 블록체인의 최신 블록이 어디까지 업데이트 되었는지 나타냄.
+
         metrics::BLOCK_HEIGHT_HEAD.set(block_head.height as i64);
         let block_header = store.get_block_header(&block_head.last_block_hash)?;
         metrics::BLOCK_ORDINAL_HEAD.set(block_header.block_ordinal() as i64);
@@ -687,21 +718,29 @@ impl Chain {
         self.doomslug_threshold_mode = DoomslugThresholdMode::NoApprovals
     }
 
+    /// bp : block producer
+    /// block producer의 해시값 계산함.
+    /// near에서 validator를 block producer라고 함.
     pub fn compute_bp_hash(
-        runtime_adapter: &dyn RuntimeWithEpochManagerAdapter,
+        runtime_adapter: &dyn RuntimeWithEpochManagerAdapter, /// 블록체인 런타임과 상호작용한다.
         epoch_id: EpochId,
         prev_epoch_id: EpochId,
         last_known_hash: &CryptoHash,
     ) -> Result<CryptoHash, Error> {
+        /// epoch_id & last_know_hash 이용해서 epoch block producers 목록 가져옴.
         let bps = runtime_adapter.get_epoch_block_producers_ordered(&epoch_id, last_known_hash)?;
+        /// prev_epoch_id 이용해서 epoch protocol 버전 가져옴.
         let protocol_version = runtime_adapter.get_epoch_protocol_version(&prev_epoch_id)?;
+
         if checked_feature!("stable", BlockHeaderV3, protocol_version) {
+            /// BlockHeaderV3 : 블록 헤더 버전 3인건가.
             let validator_stakes = bps.into_iter().map(|(bp, _)| bp);
             Ok(CryptoHash::hash_borsh_iter(validator_stakes))
         } else {
             let validator_stakes = bps.into_iter().map(|(bp, _)| bp.into_v1());
             Ok(CryptoHash::hash_borsh_iter(validator_stakes))
         }
+
     }
 
     pub fn get_last_time_head_updated(&self) -> Instant {

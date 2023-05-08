@@ -78,6 +78,7 @@ const STATE_DUMP_FILE: &str = "state_dump";
 const GENESIS_ROOTS_FILE: &str = "genesis_roots";
 
 /// Defines Nightshade state transition and validator rotation.
+/// Nightshade 상태 전환과 검증자 순환을 정의한다.
 /// TODO: this possibly should be merged with the runtime cargo or at least reconciled on the interfaces.
 pub struct NightshadeRuntime {
     genesis_config: GenesisConfig,

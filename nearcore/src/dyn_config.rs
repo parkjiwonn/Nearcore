@@ -53,6 +53,7 @@ fn read_log_config(home_dir: &Path) -> Result<Option<LogConfig>, UpdateableConfi
 }
 
 // the file can be JSON with comments
+// 이 파일은 주석이 있는 json일 수 있다.
 fn read_json_config<T: std::fmt::Debug>(
     path: &Path,
 ) -> Result<Option<T>, UpdateableConfigLoaderError>

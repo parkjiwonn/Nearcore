@@ -86,20 +86,26 @@ const STATE_COLUMNS: [DBCol; 2] = [DBCol::State, DBCol::FlatState];
 const STATE_FILE_END_MARK: u8 = 255;
 
 /// Node’s storage holding chain and all other necessary data.
-///
+/// 체인과 모든 다른 필요한 데이터를 가지고 있는 노드의 저장소
 /// Provides access to hot storage, cold storage and split storage. Typically
 /// users will want to use one of the above via the Store abstraction.
+/// hot 저장소, cold 저장소 그리고 분할 저장소에 대한 엑세스를 제공한다.
+/// 일반적으로 사용자들은 저장소 추상화를 통해 위 중 하나를 사용하길 원한다.
+/// 저장소 추상화는 뭘까?
+///
+/// 정리 : node storage는 노드가 갖고 있는 데이터를 저장하고 있는 저장소 (체인도 들어있고 기타 등등 데이터들이 담겨있다.)
+/// hot, cold, split 저장소에 대한 접근을 허용하는데 사용자들은 이 셋 중 하나를 사용하길 원해
 pub struct NodeStorage {
     hot_storage: Arc<dyn Database>,
     cold_storage: Option<Arc<crate::db::ColdDB>>,
 }
 
 /// Node’s single storage source.
-///
+/// 노드의 싱글 저장소 소스
 /// The Store holds one of the possible databases:
 /// - The hot database - access to the hot database only
 /// - The cold database - access to the cold database only
-/// - The split database - access to both hot and cold databases
+/// - The split database - access to both hot and cold databases = hot, cold 둘다 접근할 수 있는 것.
 #[derive(Clone)]
 pub struct Store {
     storage: Arc<dyn Database>,
@@ -108,6 +114,7 @@ pub struct Store {
 impl NodeStorage {
     /// Initialises a new opener with given home directory and hot and cold
     /// store config.
+    /// 주어진 홈 디렉토리와 hot,cold 저장소 설정으로 새로운 opener을 초기화한다.
     pub fn opener<'a>(
         home_dir: &std::path::Path,
         archive: bool,
@@ -242,6 +249,7 @@ impl NodeStorage {
     }
 
     /// Reads database metadata and returns whether the storage is archival.
+    /// db의 메타데이터 읽고 저장소가 아카이브인지 아닌지 반환한다.
     pub fn is_archive(&self) -> io::Result<bool> {
         if self.cold_storage.is_some() {
             return Ok(true);

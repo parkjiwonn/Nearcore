@@ -338,6 +338,7 @@ pub static COLD_STORE_MIGRATION_BATCH_WRITE_TIME: Lazy<HistogramVec> = Lazy::new
     .unwrap()
 });
 
+/// 저장소의 상태를 내보낸다.
 fn export_store_stats(store: &Store, temperature: Temperature) {
     if let Some(stats) = store.get_store_statistics() {
         tracing::debug!(target:"metrics", "Exporting the db metrics for {temperature:?} store.");
@@ -350,14 +351,20 @@ fn export_store_stats(store: &Store, temperature: Temperature) {
 }
 
 pub fn spawn_db_metrics_loop(
+    /// NodeStorage & 주기를 인자로 받는다.
+    /// 무슨 주기 일까?
     storage: &NodeStorage,
     period: std::time::Duration,
 ) -> anyhow::Result<ArbiterHandle> {
-    tracing::debug!(target:"metrics", "Spawning the db metrics loop.");
-    let db_metrics_arbiter = actix_rt::Arbiter::new();
 
-    let start = tokio::time::Instant::now();
-    let mut interval = actix_rt::time::interval_at(start, period);
+    tracing::debug!(target:"metrics", "Spawning the db metrics loop.");
+
+    let db_metrics_arbiter = actix_rt::Arbiter::new();
+    /// arbiter future & function 들을 위한 비동기 실행 환경을 만드는 것.
+    /// 그런 실행 환경을 왜 만드는데?
+
+    let start = tokio::time::Instant::now(); /// 시작 시간
+    let mut interval = actix_rt::time::interval_at(start, period); /// 시간 간격
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     let hot_store = storage.get_hot_store();
@@ -372,6 +379,10 @@ pub fn spawn_db_metrics_loop(
             if let Some(cold_store) = &cold_store {
                 export_store_stats(cold_store, Temperature::Cold);
             }
+            /// loop를 돌면서 저장소의 상태를 내보낸다.
+            /// db_metrics : db의 성능 & 지표
+            /// spawn : (결과를) 낳다.
+            /// 근데 이 metric를 loop를 돌면서 낳는다고 하네
         }
     });
 

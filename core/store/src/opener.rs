@@ -151,7 +151,7 @@ fn is_valid_kind_archive(kind: DbKind, archive: bool) -> bool {
 }
 
 /// Builder for opening node’s storage.
-///
+/// 노드의 저장소를 열기위한 빌더
 /// Typical usage:
 ///
 /// ```ignore
@@ -161,20 +161,27 @@ fn is_valid_kind_archive(kind: DbKind, archive: bool) -> bool {
 /// ```
 pub struct StoreOpener<'a> {
     /// Opener for an instance of RPC or Hot RocksDB store.
+    /// RPC 또는 Hot RockDB 저장소의 인스턴스를 위한 따개
     hot: DBOpener<'a>,
 
     /// Opener for an instance of Cold RocksDB store if one was configured.
+    /// cold RockDB 저장소가 구성된 경우 이 저장소의 인스턴스를 위한 따개
     cold: Option<DBOpener<'a>>,
 
     /// Whether the opener should expect archival db or not.
+    /// 오프너가 아카이브 db를 기대해야하는지 아닌지
+    /// 왜?
     archive: bool,
 
     /// A migrator which performs database migration if the database has old
     /// version.
+    /// db의 이전 버전이 있다면 db 이주을 수행하는 이주자
+    /// 이전버전에서 현재 버전으로 이주하는 것.
     migrator: Option<&'a dyn StoreMigrator>,
 }
 
 /// Opener for a single RocksDB instance.
+/// 싱글 RocksDB 인스턴스의 오프너(따개)
 struct DBOpener<'a> {
     /// Path to the database.
     ///
@@ -195,27 +202,33 @@ struct DBOpener<'a> {
 
 impl<'a> StoreOpener<'a> {
     /// Initialises a new opener with given home directory and store config.
+    /// 주어진 홈 디렉토리와 저장소 conifg가 있는 새로운 오프너를 초기화한다.
     pub(crate) fn new(
-        home_dir: &std::path::Path,
-        archive: bool,
-        config: &'a StoreConfig,
-        cold_config: Option<&'a StoreConfig>,
+        home_dir: &std::path::Path, /// 홈 디렉토리
+        archive: bool, /// 아카이브 db를 기대해야하는지 아닌지
+        config: &'a StoreConfig, /// 저장소 구성
+        cold_config: Option<&'a StoreConfig>, /// cold DB 구성
     ) -> Self {
-        Self {
-            hot: DBOpener::new(home_dir, config, Temperature::Hot),
-            cold: cold_config.map(|config| DBOpener::new(home_dir, config, Temperature::Cold)),
-            archive: archive,
-            migrator: None,
+        Self { /// StoreOpener 구조체를 초기화함.
+            hot: DBOpener::new(home_dir, config, Temperature::Hot), /// hot은 DBOpener 구조체로 인스턴스를 RPC 또는 Hot RocksDB 저장소에 대한 오프너로 설정함.
+            cold: cold_config.map(|config| DBOpener::new(home_dir, config, Temperature::Cold)), /// Cold RocksDB 저장소에 대한 오프너 설정
+            archive: archive, /// 아카이브 DB 여부를 나타냄
+            migrator: None, /// StoreMigrator 트레이트를 구현하는 객체
         }
     }
 
     /// Configures the opener with specified [`StoreMigrator`].
-    ///
-    /// If the migrator is not configured, the opener will fail to open
-    /// databases with older versions.  With migrator configured, it will
-    /// attempt to perform migrations.
+    /// 명시된 StoreMigrator로 오프너를 구성하다.
+    /// If the migrator is not configured, the opener will fail to open databases with older versions.
+    /// 만약 migrator가 구성되지 않았다면 opener는 이전 버전의 데이터 베이스를 여는데 실패할 것이다.
+    /// With migrator configured, it will attempt to perform migrations.
+    /// 구성된 migrator와 migrations을 수행하기를 시도할 것 이다.
     pub fn with_migrator(mut self, migrator: &'a dyn StoreMigrator) -> Self {
+        /// StoreOpener에 대해 StoreMigrator 트레이트 객체 사용해서 migration 수행하도록 지시함.
         self.migrator = Some(migrator);
+        /// StoreOpener 구조체 생성할때 migrator가 none 이었는데
+        /// Some(migrator) 해줌으로써 StoreMigrator 트레이트 객체를 설정해준것.
+        /// StoreMigrator는 storage의 버전을 확인하고 버전 이전을 해야할 경우 버전 이전을 해주는 것.
         self
     }
 
@@ -232,36 +245,53 @@ impl<'a> StoreOpener<'a> {
     }
 
     /// Opens the storage in read-write mode.
-    ///
+    /// 읽고-쓰는 모드로 저장소를 열어라
     /// Creates the database if missing.
+    /// 만약 잃어버릴 경우 데이터 베이스를 생성해라
     pub fn open(&self) -> Result<crate::NodeStorage, StoreOpenerError> {
-        self.open_in_mode(Mode::ReadWrite)
+        self.open_in_mode(Mode::ReadWrite)/// 모드는 읽고 쓰기
+        /// 읽기/쓰기 모드로 DB 열고 NodeStorage 반환한다.
     }
 
     /// Opens the RocksDB database(s) for hot and cold (if configured) storages.
-    ///
+    /// hot 그리고 cold(구성된 경우) 저장소에 대한 RocksDB 데이터 베이스를 연다.
     /// When opening in read-only mode, verifies that the database version is
-    /// what the node expects and fails if it isn’t.  If database doesn’t exist,
-    /// creates a new one unless mode is [`Mode::ReadWriteExisting`].  On the
-    /// other hand, if mode is [`Mode::Create`], fails if the database already
+    /// what the node expects and fails if it isn’t.
+    /// 오직 읽기 모드에서 열었을 때, db 버전이 노드가 예상하는 것과 일치하는지 확인하고 그렇지 않은 경우 실패한다.
+    /// If database doesn’t exist,
+    /// creates a new one unless mode is [`Mode::ReadWriteExisting`].
+    /// 만약 db가 존재하지 않는다면 모드가 [`Mode::ReadWriteExisting`] (이미 존재하면 실패하기때문) 가 아닌 이상 새로운 것을 만든다.
+    /// On the other hand, if mode is [`Mode::Create`], fails if the database already
     /// exists.
+    /// 다른 말로 만약 모드가 [`Mode::Create`]인 경우 만약 db가 이미 존재한다면 실패한다.
+    /// readwriteexisting은 존재하면 실패 create는 존재하지 않으면 다시 만듬. 존재하면 만들 이유가 없음.
+    /// open_in_mode는 매개변수로 mode를 받고 nodestorage를 반환한다.
+    /// -> 읽기 쓰기 모드로 존재하는 db를 연다. 만약 존재하지 않으면 다시 만든다.
     pub fn open_in_mode(&self, mode: Mode) -> Result<crate::NodeStorage, StoreOpenerError> {
+        /// open_in_mode: StoreOpener 구조체의 메서드
+        /// StoreOpener와 mode를 매개변수로 받고 NodeStorage를 반환한다.
         {
+            /// hot_path & cold_path 경로를 출력한다.
+            /// cold_path는 경로가 있는 경우에 출력한다.
             let hot_path = self.hot.path.display().to_string();
             let cold_path = match &self.cold {
                 Some(cold) => cold.path.display().to_string(),
                 None => String::from("none"),
             };
+            /// node 저장소를 열었다.
             tracing::info!(target: "db_opener", path=hot_path, cold_path=cold_path, "Opening NodeStorage");
         }
 
         let hot_snapshot = {
+            /// hot 디렉토리에 대한 스냅샷 생성한다.
             Self::ensure_created(mode, &self.hot)?;
             Self::ensure_kind(mode, &self.hot, self.archive, Temperature::Hot)?;
             Self::ensure_version(mode, &self.hot, &self.migrator)?
         };
 
         let cold_snapshot = if let Some(cold) = &self.cold {
+            /// cold 디렉토리에 대한 스냅샷 생성한다.
+            /// 스냅샷 : 특정 시점의 시스템 정보를 저장한다.
             Self::ensure_created(mode, cold)?;
             Self::ensure_kind(mode, cold, self.archive, Temperature::Cold)?;
             Self::ensure_version(mode, cold, &self.migrator)?
@@ -323,10 +353,19 @@ impl<'a> StoreOpener<'a> {
     }
 
     // Creates the DB if it doesn't exist.
+    /// 만약 db가 존재하지 않는다면 db를 생성한다.
     fn ensure_created(mode: Mode, opener: &DBOpener) -> Result<(), StoreOpenerError> {
-        let meta = opener.get_metadata()?;
+        let meta = opener.get_metadata()?; /// db의 메타데이터를 가져옴.
+        /// 메타데이터가 존재하는 경우 db가 이미 존재하는 것으로 간주됨.
+        /// 메타데이터? 다른 데이터를 설명해주는 데이터이다.
+        /// 예를 들어 디지털 카메라에서 사진 찍어서 기록할때 사진 자체의 정보와 시간,장소 부가적인 데이터를 같이 저장한다.
+        /// 이런 부가적인 데이터를 분석해서 이용하면 사진을 적절하게 정리하거나 다시 가공할때 다시 유용하게 쓸 수 있는 정보가 된다.
+        /// 그래서 데이터에 대한 데이터라고 하는 것.
         match meta {
+            /// must_create 는 create mode 존재하면 실해하는 것. 읽기 쓰기 가능
+            ///
             Some(_) if !mode.must_create() => {
+                /// false -> DB가 존재한다.
                 tracing::info!(target: "db_opener", path=%opener.path.display(), "The database exists.");
                 return Ok(());
             }
@@ -349,6 +388,10 @@ impl<'a> StoreOpener<'a> {
 
     /// Ensures that the db has correct kind. If the db doesn't have kind
     /// it sets it, if the mode allows, or returns an error.
+    /// db에 올바른 종류가 있는지 확인함. DB에 종류가 없는 경우 모드가 허용하는 경우 종류를 설정하거나 오류를 반환함.??
+    /// => RocksDB 가 올바른 종류(kind)인지 확인하는 메서드임.
+    /// db 종류 확인하고 종류가 지정되어 있찌 않은 경우에 설저함.
+    /// hot 인지 cold 인지 확인하는 것.
     fn ensure_kind(
         mode: Mode,
         opener: &DBOpener,
@@ -376,19 +419,22 @@ impl<'a> StoreOpener<'a> {
         }
 
         // Kind is not set, set it.
+        /// 종류가 결정 안되어 있으면 설정해라.
         if mode.read_write() {
             tracing::info!(target: "db_opener", archive,  which, "Setting the db DbKind to {default_kind:#?}");
 
             store.set_db_kind(default_kind)?;
+            /// db 종류 설정하는 메서드
             return Ok(());
         }
 
         return err;
     }
 
-    /// Ensures that the db has the correct - most recent - version. If the
-    /// version is lower, it performs migrations up until the most recent
-    /// version, if mode allows or returns an error.
+    /// Ensures that the db has the correct - most recent - version.
+    /// db가 맞는 가장 최근의 버전을 갖고있는지 확인한다.
+    /// If the version is lower, it performs migrations up until the most recent version, if mode allows or returns an error.
+    /// 만약 버전이 낮다면 가장 최근의 버전까지 db 이주를 시킨다.
     fn ensure_version(
         mode: Mode,
         opener: &DBOpener,
@@ -410,6 +456,11 @@ impl<'a> StoreOpener<'a> {
         // If we’re opening for reading, we cannot perform migrations thus we
         // must fail if the database has old version (even if we support
         // migration from that version).
+        /// 읽기 모드에서는 migration 수행할 수 X
+        /// 오래된 버전은 그냥 읽기 밖에 못하나?
+        /// db를 읽기만 한다며는 당연히 수정이 안되겠지 편집모드가 아니니까
+        /// 따라서 오래된 버전이 있다면 실패할 것이다
+        /// 읽기 모드 = 오래된 버전으로 해석하면 되나
         if mode.read_only() {
             return Err(StoreOpenerError::DbVersionMismatchOnRead {
                 got: version,
@@ -418,6 +469,7 @@ impl<'a> StoreOpener<'a> {
         }
 
         // Figure out if we have migrator which supports the database version.
+        /// db migration 지원하는 migrator를 가지고 있는지 확인한다.
         let migrator = migrator
             .ok_or(StoreOpenerError::DbVersionMismatch { got: version, want: DB_VERSION })?;
         if let Err(release) = migrator.check_support(version) {
@@ -549,25 +601,28 @@ impl<'a> DBOpener<'a> {
 
 pub trait StoreMigrator {
     /// Checks whether migrator supports database versions starting at given.
-    ///
+    /// migrator가 지정된 버전 부터 db 버전을 지원하는지 여부를 확인함.
     /// If the `version` is too old and the migrator no longer supports it,
     /// returns `Err` with the latest neard release which supported that
     /// version.  Otherwise returns `Ok(())` indicating that the migrator
     /// supports migrating the database from the given version up to the current
     /// version [`DB_VERSION`].
-    ///
+    /// '버전'이 너무 오래되어 migrator에서 더이상 지원하지 않는 경우, 해당 버전을 지원하는 최신 니어 릴리스와 함께 'Err'를 반환한다.
+    /// 그렇지 않으면 OK(())를 반환해서 migrator가 지정된 버전에서 현재 버전 ['DB_VERSION']으로 db migration을 지원함을 나타냅니다.
     /// **Panics** if `version` ≥ [`DB_VERSION`].
     fn check_support(&self, version: DbVersion) -> Result<(), &'static str>;
 
     /// Performs database migration from given version to the next one.
-    ///
+    /// 지정된 버전에서 다음 버전으로 db migration을 수행한다.
     /// The function only does single migration from `version` to `version + 1`.
+    /// 이 기능은 version에서 version+1 로의 단일 migration만 수행한다.
     /// It doesn’t update database’s metadata (i.e. what version is stored in
     /// the database) which is responsibility of the caller.
-    ///
+    /// 호출자가 담당하는 db의 메타 데이터(즉, db에 저장된 버전) 를 업데이트하지 않는다.
     /// **Panics** if `version` is not supported (the caller is supposed to
     /// check support via [`Self::check_support`] method) or if it’s greater or
     /// equal to [`DB_VERSION`].
+    /// version이 지원되지 않는 경우 또는 더 큰 경우 ['DB_VERISON']과 같다.
     fn migrate(&self, store: &Store, version: DbVersion) -> anyhow::Result<()>;
 }
 

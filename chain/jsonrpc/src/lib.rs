@@ -1516,7 +1516,7 @@ pub fn start_http(
     genesis_config: GenesisConfig,
     client_addr: Addr<ClientActor>,
     view_client_addr: Addr<ViewClientActor>,
-    peer_manager_addr: Option<Addr<PeerManagerActor>>,
+    peer_manager_addr: Option<Addr<PeerMaFnagerActor>>,
 ) -> Vec<(&'static str, actix_web::dev::ServerHandle)> {
     let RpcConfig {
         addr,

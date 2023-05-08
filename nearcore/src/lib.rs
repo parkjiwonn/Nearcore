@@ -35,6 +35,7 @@ pub mod migrations;
 mod runtime;
 mod state_sync;
 
+// near의 기본 홈 디렉토리를 구하는 함수
 pub fn get_default_home() -> PathBuf {
     if let Ok(near_home) = std::env::var("NEAR_HOME") {
         return near_home.into();
@@ -49,26 +50,36 @@ pub fn get_default_home() -> PathBuf {
 }
 
 /// Opens node’s storage performing migrations and checks when necessary.
-///
+/// 채굴을 수행하는 노드의 저장소를 열고 필요한 경우 확인한다.
 /// If opened storage is an RPC store and `near_config.config.archive` is true,
-/// converts the storage to archival node.  Otherwise, if opening archival node
+/// converts the storage to archival node.
+/// 만약 열린 저장소가 RPC 저장소이고 near_config.config.archive 가 true인 경우 저장소를 아카이브로 변환한다.
+/// Otherwise, if opening archival node
 /// with that field being false, prints a warning and sets the field to `true`.
+/// 그렇지 않으면 만약 필드가 거짓인 아카이브 모드를 열면 경고를 출력하고 필드를 true로 설정한다.
 /// In other words, once store is archival, the node will act as archival nod
 /// regardless of settings in `config.json`.
-///
+/// 다른말로 일단 저장소가 아카이브 노드로 전환되면 config.json 설정에 관계없이 노드는 아카이브 노드로 동작한다.
 /// The end goal is to get rid of `archive` option in `config.json` file and
 /// have the type of the node be determined purely based on kind of database
 /// being opened.
-fn open_storage(home_dir: &Path, near_config: &mut NearConfig) -> anyhow::Result<NodeStorage> {
-    let migrator = migrations::Migrator::new(near_config);
-    let opener = NodeStorage::opener(
+/// 최종 목표는 config.json 파일에서 아카이브 옵션을 없애고 노드 유형이 열리는 db의 종류에 따라 순전히노드 유형이 결정되도록 하는 것.
+/// ( 정리 )
+/// 노드의 유형이 열리는 스토리지 종류에 따라 노드 유형이 결정되도록 하는 것이다.
+fn open_storage(home_dir: &Path, near_config: &mut NearConfig) -> anyhow::Result<NodeStorage> {/// anyhow : 코드에서 발생하는 에러를 한가지 타입으로 처리할수있게 도와주는 라이브러리
+    let migrator = migrations::Migrator::new(near_config); /// Migrator 구조체 생성함.
+    /// migrator : 노드 스토리지의 버전을 변경시켜주는 것.
+    let opener = NodeStorage::opener( /// NodeStorage의 opener 메서드
         home_dir,
         near_config.client_config.archive,
         &near_config.config.store,
         near_config.config.cold_store.as_ref(),
     )
     .with_migrator(&migrator);
+    /// match 표현식 사용해서 open() 메서드 호출 결과를 처리함.
+    /// 호출 결과에 따라 다양한 분기를 수행함.
     let storage = match opener.open() {
+        /// 읽기 쓰기 모드로 hot cold 저장소에 대한 RocksDB 열고 난 다음 상황들을 분기처리한것.
         Ok(storage) => Ok(storage),
         Err(StoreOpenerError::IO(err)) => {
             Err(anyhow::anyhow!("{err}"))
@@ -151,6 +162,8 @@ fn open_storage(home_dir: &Path, near_config: &mut NearConfig) -> anyhow::Result
     }.with_context(|| format!("unable to open database at {}", opener.path().display()))?;
 
     near_config.config.archive = storage.is_archive()?;
+    /// db에서 메타데이터 확인하고 저장소가 아카이브인지 아닌지 확인하고 아카이브 boolean값 설정한다.
+    /// 왜냐하면 storage 확인하고 노드의 유형을 결정한다고 했으니까.
     Ok(storage)
 }
 
@@ -181,21 +194,36 @@ fn get_split_store(config: &NearConfig, storage: &NodeStorage) -> anyhow::Result
     Ok(storage.get_split_store())
 }
 
+/// Node 구조체
 pub struct NearNode {
     pub client: Addr<ClientActor>,
     pub view_client: Addr<ViewClientActor>,
-    pub arbiters: Vec<ArbiterHandle>,
+    pub arbiters: Vec<ArbiterHandle>, // 중재자 - 검증자를 말하는 건가?
     pub rpc_servers: Vec<(&'static str, actix_web::dev::ServerHandle)>,
     /// The cold_store_loop_handle will only be set if the cold store is configured.
-    /// It's a handle to a background thread that copies data from the hot store to the cold store.
+    /// It's a handle to a background thread that copies data from the hot store to the cold store.+
+    /// 콜드 스토어가 구성된 경우에만 콜드 스토어 루프 핸들이 설정됩니다.
+    /// 핫 스토어에서 콜드 스토어로 데이터를 복사하는 백그라운드 스레드에 대한 핸들입니다.
+    /// 콜드 스토어 = 콜드 wallet(오프라인 지갑), 핫 스토어 = 핫 wallet(online based wallet)?
+    /// 콜드는 안전하게 데이터 보관&엑세스 제한, 핫은 엑세스가 가능, 데이터에 빠른 접근이 필요할때 사용
+    /// 근데 핫에서 콜드로 데이터 복사할 때 백에서 스레드가 도는 거지
     pub cold_store_loop_handle: Option<ColdStoreLoopHandle>,
     /// Contains handles to background threads that may be dumping state to S3.
+    /// 상태를 S3에 덤프할 수 있는 백그라운드 스레드에 대한 핸들을 포함합니다.
+    /// S3에 왜 덤프할까? 백업&복원 같은 목적 때문에
+    /// S3? 아마존 웹 서비스에서 제공하는 클라우드 스토리지 서비스
     pub state_sync_dump_handle: Option<StateSyncDumpHandle>,
+    /// StateSyncDumpHandle 는 생성된 스레드의 수명을 제어하는 arbiter 핸들을 보유함.
+    ///
 }
 
+/// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!실제 진입점!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 pub fn start_with_config(home_dir: &Path, config: NearConfig) -> anyhow::Result<NearNode> {
+    /// 인수 : home_dir(홈 디렉토리 경로), config(nearconfig 구조체)
+    /// NearNode라는 결과 타입 반환함.
     start_with_config_and_synchronization(home_dir, config, None, None)
 }
+/// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!실제 진입점!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 pub fn start_with_config_and_synchronization(
     home_dir: &Path,
@@ -206,8 +234,11 @@ pub fn start_with_config_and_synchronization(
     config_updater: Option<ConfigUpdater>,
 ) -> anyhow::Result<NearNode> {
     let storage = open_storage(home_dir, &mut config)?;
+    /// open_storage 함수 사용해서 스토리지 열고, config 구조체 업데이트함.
+    ///
     let db_metrics_arbiter = if config.client_config.enable_statistics_export {
         let period = config.client_config.log_summary_period;
+        /// metrics 정보 수집해야하는 주기 설정
         let db_metrics_arbiter_handle = spawn_db_metrics_loop(&storage, period)?;
         Some(db_metrics_arbiter_handle)
     } else {

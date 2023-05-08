@@ -102,15 +102,20 @@ pub enum MigrationSnapshot {
 }
 
 /// Mode in which to open the storage.
+/// 저장소를 열기위한 모드
 #[derive(Clone, Copy)]
 pub enum Mode {
     /// Open an existing database in read-only mode.  Fail if it doesn’t exist.
+    /// 읽기만 하는 모드로 존재하는 db를 연다. 만약 존재하지 않으면 실패한다.
     ReadOnly,
     /// Open an existing database in read-write mode.  Fail if it doesn’t exist.
+    /// 읽기 쓰기 모드로 존재하는 db를 연다. 만약 존재하지 않으면 실패한다.
     ReadWriteExisting,
     /// Open a database in read-write mode.  create if it doesn’t exist.
+    /// 읽기 쓰기 모드로 존재하는 db를 연다. 만약 존재하지 않으면 다시 만든다.
     ReadWrite,
     /// Creates a new database in read-write mode.  Fails if it exists.
+    /// 읽기 쓰기 모드로 존재하는 db를 연다. 존재한다면 실패한다.
     Create,
 }
 

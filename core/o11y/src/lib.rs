@@ -445,20 +445,24 @@ pub enum ReloadError {
     Parse(#[source] BuildEnvFilterError),
 }
 
+// 로그 구성을 다시 로드한다.
 pub fn reload_log_config(config: Option<&log_config::LogConfig>) {
     let result = if let Some(config) = config {
         reload(
             config.rust_log.as_deref(),
             config.verbose_module.as_deref(),
             config.opentelemetry_level,
-        )
+        ) // 3가지 값을 사용해 로그 구성을 다시 로드한다.
     } else {
         // When the LOG_CONFIG_FILENAME is not available, reset to the tracing and logging config
         // when the node was started.
+        // LOG_CONFIG_FILENAME이 가능하지 않다면 노드가 시작할 때 tracing 과 logging config를 리셋한다.
         reload(None, None, None)
+        // 로구 구성이 주어지지 않았다면 None 값을 사용해 기본 로그 구성을 다시 로드한다.
     };
     match result {
         Ok(_) => {
+            // 로그 구성을 성공적으로 다시 로드하면 아래 메시지 출력함.
             println!("Updated the logging layer according to `log_config.json`");
         }
         Err(err) => {
@@ -468,14 +472,23 @@ pub fn reload_log_config(config: Option<&log_config::LogConfig>) {
 }
 
 /// Constructs new filters for the logging and opentelemetry layers.
-///
+/// logging 과 opentelemetry layers에 대한 새 필터를 구성한다.
 /// Attempts to reload all available errors. Returns errors for each layer that failed to reload.
-///
+/// 사용 가능한 모든 오류들을 다시 로드하려고 시도함. 로드하는데 실패한 각 레이어에 대한 오류를 반환한다.
 /// The newly constructed `EnvFilter` provides behavior equivalent to what can be obtained via
 /// setting `RUST_LOG` environment variable and the `--verbose` command-line flag.
+/// 새롭게 구성된 EnvFilter는 RUST_LOG 환경 변수와 --verbose 명령줄 플래그를 설정함으로써 얻을 수 있는 것과 동일한 동작을 제공한다.
 /// `rust_log` is equivalent to setting `RUST_LOG` environment variable.
+/// 'rust_log'는 RUST_LOG 환경 변수를 설정하는것과 동일하다.
 /// `verbose` indicates whether `--verbose` command-line flag is present.
+/// 'verbose' 는 --verbose 명령줄이 존재하는지 아닌지 나타낸다.
 /// `verbose_module` is equivalent to the value of the `--verbose` command-line flag.
+/// 'verbose_modele'은 --verbose 명령줄의 값과 동일하다.
+///
+/// logging = 응용 프로그램의 로그 생성하고 관리하는데 사용
+/// opentelemetry layer = 분산 추적 정보를 수집하고 관리하는데 사용됨.
+/// 왜 로그 & 오픈텔레메트리 레이어에 대한 필터를 다시 로드하는 것일까?
+
 pub fn reload(
     rust_log: Option<&str>,
     verbose_module: Option<&str>,

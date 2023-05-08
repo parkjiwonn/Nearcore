@@ -14,6 +14,7 @@ use crate::config::SplitStorageConfig;
 use crate::{metrics, NearConfig, NightshadeRuntime};
 
 /// A handle that keeps the state of the cold store loop and can be used to stop it.
+/// cold 저장소 loop의 상태를 유지하고 loop를 멈추는데 사용될 수 있는 hadle 임.
 pub struct ColdStoreLoopHandle {
     join_handle: std::thread::JoinHandle<()>,
     keep_going: Arc<AtomicBool>,
@@ -292,12 +293,16 @@ fn cold_store_loop(
 }
 
 /// Spawns the cold store loop in a background thread and returns ColdStoreLoopHandle.
+/// 백그라운드 스레드에서 cold 저장소 루프를 만들고 ColdStoreLoopHandle를 반환한다.
 /// If cold store is not configured it does nothing and returns None.
+/// 만약 cold 저장소가 구성되지 않은 경우 아무것도 하지 않고 반환하지 않는다.
 /// The cold store loop is spawned in a rust native thread because it's quite heavy
-/// and it is not suitable for async frameworks such as actix or tokio. It's not suitable
-/// for async because RocksDB itself doesn't support async. Running this in an async
-/// environment would just hog a thread while synchronously waiting for the IO operations
-/// to finish.
+/// and it is not suitable for async frameworks such as actix or tokio.
+/// cold 저장소 루프가 rust native 스레드에서 만들어 지지 않는다. 왜냐면 이건 꽤 무섭고 actix 또는 tokio와 같은 비동기 프레임 워크에서 적절하지 않기 때문이다.
+/// It's not suitable for async because RocksDB itself doesn't support async.
+/// RocksDB 스스로 비동기를 지원하지 않기때문에 비동기에 적절하지 않다.
+/// Running this in an async environment would just hog a thread while synchronously waiting for the IO operations to finish.
+/// 비동기 환경에서 RocksDB를 실행시키는 것은 IO 작업이 완료되기를 동기적으로 기다리는 동안 스레드를 독차지하게 된다.
 pub fn spawn_cold_store_loop(
     config: &NearConfig,
     storage: &NodeStorage,
@@ -305,6 +310,7 @@ pub fn spawn_cold_store_loop(
 ) -> anyhow::Result<Option<ColdStoreLoopHandle>> {
     if config.config.save_trie_changes != Some(true) {
         tracing::debug!(target:"cold_store", "Not spawning cold store because TrieChanges are not saved");
+        /// trie_changes(트라이 변경사항)이 저장되었는지 확인 -> 저장되어 있지 않으면 cold store loop 시작하지 않음.
         return Ok(None);
     }
 
